@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>USA Inflation</title>
+    <!-- Include Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #000000;
+            color: #f3f4f6;
+            margin: 0;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 1450px;
+            margin: auto;
+            background: #000000;
+            padding: 35px;
+            border: 1px solid #1a1a1a;
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+        }
+
+        h2 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        /* Terminal Automated Insight Banner */
+        .insight-banner {
+            background-color: #111111;
+            border: 1px solid #333333;
+            border-left: 4px solid #ef4444;
+            padding: 14px 20px;
+            border-radius: 6px;
+            margin-bottom: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: monospace;
+        }
+
+        .insight-title {
+            font-weight: bold;
+            color: #ffffff;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+
+        .insight-text {
+            color: #9ca3af;
+            font-size: 13px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 680px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Inflation</h2>
+        
+        <!-- Automated Dynamic Insight Banner (Driven by Core PCE & Core CPI) -->
+        <div id="insightBanner" class="insight-banner">
+            <div>
+                <span class="insight-title">AUTOMATED STATUS: </span>
+                <span id="statusText" class="insight-text">Analyzing latest core macroeconomic feed...</span>
+            </div>
+            <div id="statusBadge" style="font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 4px; background: #222; color: #fff;">PROCESSING</div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="inflationChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const chartData = JSON.parse('{{ data | tojson | safe }}');
+
+        // --- 1. DYNAMIC CONDITIONAL FORMATTING & TREND ANALYSIS (Core Focus) ---
+        const corePCE = chartData.core_pce;
+        const coreCPI = chartData.core_cpi;
+        const months = chartData.months;
+
+        const latestCorePCE = corePCE[corePCE.length - 1];
+        const prevCorePCE = corePCE[corePCE.length - 2] || latestCorePCE;
+        const latestCoreCPI = coreCPI[coreCPI.length - 1];
+        const latestMonth = months[months.length - 1];
+
+        // Determine acceleration vs deceleration relative to the previous month
+        const isAccelerating = latestCorePCE > prevCorePCE;
+        const trendDirection = isAccelerating ? "Accelerating" : "Cooling Trend";
+
+        const bannerElem = document.getElementById('insightBanner');
+        const textElem = document.getElementById('statusText');
+        const badgeElem = document.getElementById('statusBadge');
+
+        // Conditional logic checking threshold > 3.0% or status flags
+        if (latestCorePCE > 3.0 || latestCoreCPI > 3.0) {
+            bannerElem.style.borderLeftColor = '#ef4444'; 
+            badgeElem.style.background = 'rgba(239, 68, 68, 0.2)';
+            badgeElem.style.color = '#ef4444';
+            badgeElem.innerText = 'ELEVATED RISK';
+            textElem.innerText = `For ${latestMonth}, Core metrics remain high (Core PCE: ${latestCorePCE}%, Core CPI: ${latestCoreCPI}%). Momentum is ${trendDirection.toLowerCase()}.`;
+        } else if (latestCorePCE >= 1.8 && latestCorePCE <= 2.2) {
+            bannerElem.style.borderLeftColor = '#22c55e'; 
+            badgeElem.style.background = 'rgba(34, 197, 94, 0.2)';
+            badgeElem.style.color = '#22c55e';
+            badgeElem.innerText = 'TARGET OPTIMAL';
+            textElem.innerText = `For ${latestMonth}, Core PCE (${latestCorePCE}%) prints squarely within target tolerance. Directional bias shows a ${trendDirection.toLowerCase()}.`;
+        } else {
+            bannerElem.style.borderLeftColor = '#eab308'; 
+            badgeElem.style.background = 'rgba(234, 179, 8, 0.2)';
+            badgeElem.style.color = '#eab308';
+            badgeElem.innerText = trendDirection.toUpperCase();
+            textElem.innerText = `For ${latestMonth}, Core PCE registers at ${latestCorePCE}% displaying a ${trendDirection.toLowerCase()} relative to prior month.`;
+        }
+
+        const ctx = document.getElementById('inflationChart').getContext('2d');
+
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+        // --- 2. AUTOMATED STATUS TEXT PLUGIN (Canvas Header Banner) ---
+        const automatedStatusTextPlugin = {
+            id: 'automatedStatusTextPlugin',
+            beforeDraw(chart) {
+                const { ctx, chartArea: { left, top, right } } = chart;
+                ctx.save();
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                ctx.font = 'bold 11px monospace';
+                ctx.textAlign = 'right';
+                // Draw live calculated status indicator directly inside the top chart canvas area
+                ctx.fillText(`CORE MOMENTUM: ${trendDirection.toUpperCase()} | LATEST CORE PCE: ${latestCorePCE}%`, right - 10, top + 15);
+                ctx.restore();
+            }
+        };
+
+        const fedTargetPlugin = {
+            id: 'fedTargetPlugin',
+            beforeDraw(chart) {
+                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+                ctx.save();
+                
+                const yTop = y.getPixelForValue(2.2);
+                const yBottom = y.getPixelForValue(1.8);
+                
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+                ctx.fillRect(left, yTop, right - left, yBottom - yTop);
+
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+                const yCoord = y.getPixelForValue(2.0);
+                ctx.moveTo(left, yCoord);
+                ctx.lineTo(right, yCoord);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+                ctx.fillRect(right - 150, yCoord - 16, 142, 22);
+
+                ctx.fillStyle = '#ef4444';
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillText('FED TARGET (2.0%)', right - 142, yCoord - 2);
+                
+                ctx.restore();
+            }
+        };
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: chartData.months,
+                datasets: [
+                    {
+                        type: 'line',
+                        label: 'Headline PCE Trend',
+                        data: chartData.pce,
+                        borderColor: '#ff7f0e',
+                        backgroundColor: '#ff7f0e',
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        order: 0
+                    },
+                    {
+                        type: 'line',
+                        label: 'Core PCE Trend',
+                        data: chartData.core_pce,
+                        borderColor: '#949494',
+                        backgroundColor: '#949494',
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        order: 0
+                    },
+                    {
+                        type: 'line',
+                        label: 'Headline CPI Trend',
+                        data: chartData.cpi,
+                        borderColor: '#ffffff',
+                        backgroundColor: '#ffffff',
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        order: 0
+                    },
+                    {
+                        type: 'line',
+                        label: 'Core CPI Trend',
+                        data: chartData.core_cpi,
+                        borderColor: '#2b5cbf',
+                        backgroundColor: '#2b5cbf',
+                        borderWidth: 2.5,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        order: 0
+                    },
+                    {
+                        label: 'Headline PCE',
+                        data: chartData.pce,
+                        backgroundColor: '#ff7f0e',
+                        borderRadius: 4,
+                        barPercentage: 0.90,
+                        categoryPercentage: 0.85,
+                        order: 1
+                    },
+                    {
+                        label: 'Core PCE',
+                        data: chartData.core_pce,
+                        backgroundColor: '#949494',
+                        borderRadius: 4,
+                        barPercentage: 0.90,
+                        categoryPercentage: 0.85,
+                        order: 1
+                    },
+                    {
+                        label: 'Headline CPI',
+                        data: chartData.cpi,
+                        backgroundColor: '#ffffff',
+                        borderRadius: 4,
+                        barPercentage: 0.90,
+                        categoryPercentage: 0.85,
+                        order: 1
+                    },
+                    {
+                        label: 'Core CPI',
+                        data: chartData.core_cpi,
+                        backgroundColor: '#2b5cbf',
+                        borderRadius: 4,
+                        barPercentage: 0.90,
+                        categoryPercentage: 0.85,
+                        order: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { weight: '600', size: 11 },
+                            color: '#e5e7eb',
+                            maxRotation: 45,
+                            minRotation: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 5.5,
+                        grid: {
+                            color: '#1a1a1a',
+                            lineWidth: 1
+                        },
+                        ticks: {
+                            callback: function(value) { return value + '%'; },
+                            font: { weight: '600', size: 12 },
+                            color: '#e5e7eb'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Year-over-Year Percentage Change (%)',
+                            font: { size: 14, weight: '700' },
+                            color: '#ffffff'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            padding: 20,
+                            font: { size: 12, weight: '700' },
+                            color: '#ffffff',
+                            usePointStyle: true,
+                            pointStyle: 'rectRounded'
+                        }
+                    },
+                    // --- 3. THRESHOLD-BASED TOOLTIPS ---
+                    tooltip: {
+                        backgroundColor: '#111111',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        bodyFont: { size: 13, weight: 'bold' },
+                        borderColor: '#333333',
+                        borderWidth: 1,
+                        padding: 12,
+                        cornerRadius: 6,
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.raw;
+                                let tag = ' [Within Target Band]';
+                                if (val > 2.2) {
+                                    tag = ' [Above Target]';
+                                } else if (val < 1.8) {
+                                    tag = ' [Below Target]';
+                                }
+                                return ` ${context.dataset.label}: ${val}%${tag}`;
+                            }
+                        }
+                    }
+                }
+            },
+            plugins: [fedTargetPlugin, automatedStatusTextPlugin]
+        });
+    </script>
+</body>
+</html>
