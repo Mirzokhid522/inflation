@@ -8,15 +8,16 @@ load_dotenv()
 app = Flask(__name__)
 FRED_API_KEY = os.getenv('FRED_API_KEY')
 
-def fetch_fred_series(series_id):
-    """Helper function to fetch monthly data from FRED API and calculate YoY change."""
+def fetch_fred_yoy_series(series_id):
+    """Fetches pre-calculated Year-over-Year percentage changes directly from FRED API using 'units': 'pc1'."""
     url = "https://api.stlouisfed.org/fred/series/observations"
     params = {
         'series_id': series_id,
         'api_key': FRED_API_KEY,
         'file_type': 'json',
         'sort_order': 'desc',
-        'limit': 24  # Fetch last 24 months to easily compute 1-year (12-month) lag YoY changes
+        'units': 'pc1',  # Automatically computes Year-over-Year percent change server-side on FRED
+        'limit': 24      # Generous lookback to guarantee trailing 12-month alignment
     }
     
     response = requests.get(url, params=params)
@@ -24,28 +25,14 @@ def fetch_fred_series(series_id):
         return [], []
     
     data = response.json().get('observations', [])
-    # Sort chronologically ascending
     data = sorted([d for d in data if d['value'] != '.'], key=lambda x: x['date'])
     
     dates = [d['date'] for d in data]
     values = [float(d['value']) for d in data]
     return dates, values
 
-def get_yoy_inflation(values, dates):
-    """Calculates year-over-year percentage change from the monthly index levels."""
-    yoy_rates = []
-    valid_dates = []
-    for i in range(12, len(values)):
-        val_current = values[i]
-        val_year_ago = values[i - 12]
-        yoy = ((val_current - val_year_ago) / val_year_ago) * 100
-        yoy_rates.append(round(yoy, 2))
-        valid_dates.append(dates[i])
-    return valid_dates, yoy_rates
-
 @app.route('/')
 def index():
-    # Fetch series IDs: PCEPI, PCEPILFE, CPIAUCSL, CPILFESL
     series_map = {
         'pce': 'PCEPI',
         'core_pce': 'PCEPILFE',
@@ -53,28 +40,24 @@ def index():
         'core_cpi': 'CPILFESL'
     }
     
-    processed_data = {}
-    common_months = []
+    series_dates = {}
+    series_values = {}
     
     for key, series_id in series_map.items():
-        dates, vals = fetch_fred_series(series_id)
-        d_list, yoy_list = get_yoy_inflation(vals, dates)
-        processed_data[key] = yoy_list
-        common_months = d_list  # Keep the date stamps
+        dates, vals = fetch_fred_yoy_series(series_id)
+        series_dates[key] = set(dates)
+        series_values[key] = dict(zip(dates, vals))
 
-    # Slice to get the most recent 12 months for the dashboard view
-    limit_slice = 12
-    recent_months = [
-        # Format dates nicely (e.g., '2026-07' to readable labels if preferred)
-        m for m in common_months[-limit_slice:]
-    ]
-    
+    # Intersect dates across all series and automatically slice the latest 12 months
+    common_months = sorted(list(set.intersection(*map(set, series_dates.values()))))
+    recent_months = common_months[-12:] if len(common_months) >= 12 else common_months
+
     chart_payload = {
         'months': recent_months,
-        'pce': processed_data['pce'][-limit_slice:],
-        'core_pce': processed_data['core_pce'][-limit_slice:],
-        'cpi': processed_data['cpi'][-limit_slice:],
-        'core_cpi': processed_data['core_cpi'][-limit_slice:]
+        'pce': [series_values['pce'].get(m) for m in recent_months],
+        'core_pce': [series_values['core_pce'].get(m) for m in recent_months],
+        'cpi': [series_values['cpi'].get(m) for m in recent_months],
+        'core_cpi': [series_values['core_cpi'].get(m) for m in recent_months]
     }
     
     return render_template('index.html', data=chart_payload)

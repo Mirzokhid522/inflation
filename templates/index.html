@@ -94,13 +94,16 @@
         const months = chartData.months;
 
         const latestCorePCE = corePCE[corePCE.length - 1];
-        const prevCorePCE = corePCE[corePCE.length - 2] || latestCorePCE;
         const latestCoreCPI = coreCPI[coreCPI.length - 1];
         const latestMonth = months[months.length - 1];
 
-        // Determine acceleration vs deceleration relative to the previous month
-        const isAccelerating = latestCorePCE > prevCorePCE;
-        const trendDirection = isAccelerating ? "Accelerating" : "Cooling Trend";
+        // Compare latest reading against the average of the prior 3 months to capture the overarching macro trend
+        const recentWindow = corePCE.slice(-4, -1); // last 3 preceding months
+        const avgRecentPCE = recentWindow.reduce((a, b) => a + b, 0) / recentWindow.length;
+
+        // Determine overall trajectory (Cooling vs Accelerating relative to recent baseline)
+        const isCooling = latestCorePCE <= avgRecentPCE;
+        const trendDirection = isCooling ? "Cooling Trend" : "Accelerating";
 
         const bannerElem = document.getElementById('insightBanner');
         const textElem = document.getElementById('statusText');
@@ -108,23 +111,23 @@
 
         // Conditional logic checking threshold > 3.0% or status flags
         if (latestCorePCE > 3.0 || latestCoreCPI > 3.0) {
-            bannerElem.style.borderLeftColor = '#ef4444'; 
-            badgeElem.style.background = 'rgba(239, 68, 68, 0.2)';
-            badgeElem.style.color = '#ef4444';
-            badgeElem.innerText = 'ELEVATED RISK';
-            textElem.innerText = `For ${latestMonth}, Core metrics remain high (Core PCE: ${latestCorePCE}%, Core CPI: ${latestCoreCPI}%). Momentum is ${trendDirection.toLowerCase()}.`;
+            bannerElem.style.borderLeftColor = isCooling ? '#eab308' : '#ef4444'; 
+            badgeElem.style.background = isCooling ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+            badgeElem.style.color = isCooling ? '#eab308' : '#ef4444';
+            badgeElem.innerText = isCooling ? 'ELEVATED (COOLING)' : 'ELEVATED RISK';
+            textElem.innerText = `For ${latestMonth}, Core metrics remain high (Core PCE: ${latestCorePCE.toFixed(2)}%, Core CPI: ${latestCoreCPI.toFixed(2)}%). Overall path is showing a ${trendDirection.toLowerCase()}.`;
         } else if (latestCorePCE >= 1.8 && latestCorePCE <= 2.2) {
             bannerElem.style.borderLeftColor = '#22c55e'; 
             badgeElem.style.background = 'rgba(34, 197, 94, 0.2)';
             badgeElem.style.color = '#22c55e';
             badgeElem.innerText = 'TARGET OPTIMAL';
-            textElem.innerText = `For ${latestMonth}, Core PCE (${latestCorePCE}%) prints squarely within target tolerance. Directional bias shows a ${trendDirection.toLowerCase()}.`;
+            textElem.innerText = `For ${latestMonth}, Core PCE (${latestCorePCE.toFixed(2)}%) prints squarely within target tolerance. Directional bias shows a ${trendDirection.toLowerCase()}.`;
         } else {
             bannerElem.style.borderLeftColor = '#eab308'; 
             badgeElem.style.background = 'rgba(234, 179, 8, 0.2)';
             badgeElem.style.color = '#eab308';
             badgeElem.innerText = trendDirection.toUpperCase();
-            textElem.innerText = `For ${latestMonth}, Core PCE registers at ${latestCorePCE}% displaying a ${trendDirection.toLowerCase()} relative to prior month.`;
+            textElem.innerText = `For ${latestMonth}, Core PCE registers at ${latestCorePCE.toFixed(2)}% displaying a ${trendDirection.toLowerCase()} relative to recent baseline.`;
         }
 
         const ctx = document.getElementById('inflationChart').getContext('2d');
@@ -141,8 +144,7 @@
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
                 ctx.font = 'bold 11px monospace';
                 ctx.textAlign = 'right';
-                // Draw live calculated status indicator directly inside the top chart canvas area
-                ctx.fillText(`CORE MOMENTUM: ${trendDirection.toUpperCase()} | LATEST CORE PCE: ${latestCorePCE}%`, right - 10, top + 15);
+                ctx.fillText(`CORE MOMENTUM: ${trendDirection.toUpperCase()} | LATEST CORE PCE: ${latestCorePCE.toFixed(2)}%`, right - 10, top + 15);
                 ctx.restore();
             }
         };
@@ -186,7 +188,7 @@
                 datasets: [
                     {
                         type: 'line',
-                        label: 'Headline PCE Trend',
+                        label: 'Headline PCE',
                         data: chartData.pce,
                         borderColor: '#ff7f0e',
                         backgroundColor: '#ff7f0e',
@@ -197,7 +199,7 @@
                     },
                     {
                         type: 'line',
-                        label: 'Core PCE Trend',
+                        label: 'Core PCE',
                         data: chartData.core_pce,
                         borderColor: '#949494',
                         backgroundColor: '#949494',
@@ -208,7 +210,7 @@
                     },
                     {
                         type: 'line',
-                        label: 'Headline CPI Trend',
+                        label: 'Headline CPI',
                         data: chartData.cpi,
                         borderColor: '#ffffff',
                         backgroundColor: '#ffffff',
@@ -219,7 +221,7 @@
                     },
                     {
                         type: 'line',
-                        label: 'Core CPI Trend',
+                        label: 'Core CPI',
                         data: chartData.core_cpi,
                         borderColor: '#2b5cbf',
                         backgroundColor: '#2b5cbf',
@@ -310,7 +312,6 @@
                             pointStyle: 'rectRounded'
                         }
                     },
-                    // --- 3. THRESHOLD-BASED TOOLTIPS ---
                     tooltip: {
                         backgroundColor: '#202020',
                         titleColor: '#ffffff',
