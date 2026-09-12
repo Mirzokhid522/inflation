@@ -3,334 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>USA Inflation</title>
-    <!-- Include Chart.js -->
+    <title>Economic Inflation Dashboard: Comprehensive Metrics</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #191919;
-            color: #f3f4f6;
+            background-color: #121212;
+            color: #e0e0e0;
             margin: 0;
-            padding: 40px;
+            padding: 30px;
+        }
+
+        .dashboard-grid {
+            max-width: 1450px;
+            margin: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(680px, 1fr));
+            gap: 30px;
         }
 
         .container {
-            max-width: 1450px;
-            margin: auto;
-            background: #191919;
-            padding: 35px;
-            border: none;
-            border-radius: 12px;
-            box-shadow: none;
+            background: #1e1e1e;
+            padding: 24px;
+            border: 1px solid #2c2c2c;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .card-header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            border-bottom: 1px solid #2c2c2c;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         h2 {
             color: #ffffff;
-            text-align: center;
-            margin-bottom: 20px;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
+            font-size: 15px;
+            font-weight: 600;
+            margin: 0;
         }
 
-        /* Terminal Automated Insight Banner */
-        .insight-banner {
-            background-color: #202020;
-            border: 1px solid #2f2f2f;
-            border-left: 4px solid #ef4444;
-            padding: 14px 20px;
-            border-radius: 6px;
-            margin-bottom: 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-family: monospace;
+        .meta-stamp {
+            font-size: 11px;
+            color: #888888;
+            text-align: right;
+            line-height: 1.4;
         }
 
-        .insight-title {
-            font-weight: bold;
-            color: #ffffff;
-            font-size: 13px;
-            letter-spacing: 0.5px;
+        .meta-stamp span {
+            color: #d0d0d0;
         }
 
-        .insight-text {
-            color: #9ca3af;
-            font-size: 13px;
+        .next-release-row {
+            margin-top: 2px;
+        }
+
+        .next-release-row span {
+            color: #60a5fa;
+            font-weight: 600;
         }
 
         .chart-container {
             position: relative;
-            height: 680px;
+            height: 350px;
             width: 100%;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Inflation</h2>
-        
-        <!-- Automated Dynamic Insight Banner (Driven by Core PCE & Core CPI) -->
-        <div id="insightBanner" class="insight-banner">
-            <div>
-                <span class="insight-title">AUTOMATED STATUS: </span>
-                <span id="statusText" class="insight-text">Analyzing latest core macroeconomic feed...</span>
-            </div>
-            <div id="statusBadge" style="font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 4px; background: #2f2f2f; color: #fff;">PROCESSING</div>
-        </div>
-
-        <div class="chart-container">
-            <canvas id="inflationChart"></canvas>
-        </div>
-    </div>
+    <div class="dashboard-grid" id="dashboardGrid"></div>
 
     <script>
-        const chartData = JSON.parse('{{ data | tojson | safe }}');
+        const dashboardData = JSON.parse('{{ data | tojson | safe }}');
+        const chartsPayload = dashboardData.charts || {};
 
-        // --- 1. DYNAMIC CONDITIONAL FORMATTING & TREND ANALYSIS (Core Focus) ---
-        const corePCE = chartData.core_pce;
-        const coreCPI = chartData.core_cpi;
-        const months = chartData.months;
+        const chartConfigs = [
+            { key: 'cpi_yoy', title: 'Headline Consumer Price Index (YoY)', color: '#2563eb' },
+            { key: 'core_cpi_yoy', title: 'Core Consumer Price Index (YoY)', color: '#0ea5e9' },
+            { key: 'cpi_mom', title: 'Headline Consumer Price Index MoM', color: '#2563eb' },
+            { key: 'core_cpi_mom', title: 'Core Consumer Price Index MoM', color: '#0ea5e9' },
+            { key: 'pce_yoy', title: 'Headline Personal Consumption Expenditures (YoY)', color: '#2563eb' },
+            { key: 'core_pce_yoy', title: 'Core Personal Consumption Expenditures (YoY)', color: '#0ea5e9' },
+            { key: 'pce_mom', title: 'Headline Personal Consumption Expenditures MoM', color: '#2563eb' },
+            { key: 'core_pce_mom', title: 'Core Personal Consumption Expenditures MoM', color: '#0ea5e9' }
+        ];
 
-        const latestCorePCE = corePCE[corePCE.length - 1];
-        const latestCoreCPI = coreCPI[coreCPI.length - 1];
-        const latestMonth = months[months.length - 1];
+        const grid = document.getElementById('dashboardGrid');
 
-        // Compare latest reading against the average of the prior 3 months to capture the overarching macro trend
-        const recentWindow = corePCE.slice(-4, -1); // last 3 preceding months
-        const avgRecentPCE = recentWindow.reduce((a, b) => a + b, 0) / recentWindow.length;
-
-        // Determine overall trajectory (Cooling vs Accelerating relative to recent baseline)
-        const isCooling = latestCorePCE <= avgRecentPCE;
-        const trendDirection = isCooling ? "Cooling Trend" : "Accelerating";
-
-        const bannerElem = document.getElementById('insightBanner');
-        const textElem = document.getElementById('statusText');
-        const badgeElem = document.getElementById('statusBadge');
-
-        // Conditional logic checking threshold > 3.0% or status flags
-        if (latestCorePCE > 3.0 || latestCoreCPI > 3.0) {
-            bannerElem.style.borderLeftColor = isCooling ? '#eab308' : '#ef4444'; 
-            badgeElem.style.background = isCooling ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-            badgeElem.style.color = isCooling ? '#eab308' : '#ef4444';
-            badgeElem.innerText = isCooling ? 'ELEVATED (COOLING)' : 'ELEVATED RISK';
-            textElem.innerText = `For ${latestMonth}, Core metrics remain high (Core PCE: ${latestCorePCE.toFixed(2)}%, Core CPI: ${latestCoreCPI.toFixed(2)}%). Overall path is showing a ${trendDirection.toLowerCase()}.`;
-        } else if (latestCorePCE >= 1.8 && latestCorePCE <= 2.2) {
-            bannerElem.style.borderLeftColor = '#22c55e'; 
-            badgeElem.style.background = 'rgba(34, 197, 94, 0.2)';
-            badgeElem.style.color = '#22c55e';
-            badgeElem.innerText = 'TARGET OPTIMAL';
-            textElem.innerText = `For ${latestMonth}, Core PCE (${latestCorePCE.toFixed(2)}%) prints squarely within target tolerance. Directional bias shows a ${trendDirection.toLowerCase()}.`;
-        } else {
-            bannerElem.style.borderLeftColor = '#eab308'; 
-            badgeElem.style.background = 'rgba(234, 179, 8, 0.2)';
-            badgeElem.style.color = '#eab308';
-            badgeElem.innerText = trendDirection.toUpperCase();
-            textElem.innerText = `For ${latestMonth}, Core PCE registers at ${latestCorePCE.toFixed(2)}% displaying a ${trendDirection.toLowerCase()} relative to recent baseline.`;
-        }
-
-        const ctx = document.getElementById('inflationChart').getContext('2d');
-
-        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.color = '#a0a0a0';
         Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-        // --- 2. AUTOMATED STATUS TEXT PLUGIN (Canvas Header Banner) ---
-        const automatedStatusTextPlugin = {
-            id: 'automatedStatusTextPlugin',
-            beforeDraw(chart) {
-                const { ctx, chartArea: { left, top, right } } = chart;
-                ctx.save();
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-                ctx.font = 'bold 11px monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText(`CORE MOMENTUM: ${trendDirection.toUpperCase()} | LATEST CORE PCE: ${latestCorePCE.toFixed(2)}%`, right - 10, top + 15);
-                ctx.restore();
-            }
-        };
-
-        const fedTargetPlugin = {
-            id: 'fedTargetPlugin',
-            beforeDraw(chart) {
-                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-                ctx.save();
-                
-                const yTop = y.getPixelForValue(2.2);
-                const yBottom = y.getPixelForValue(1.8);
-                
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
-                ctx.fillRect(left, yTop, right - left, yBottom - yTop);
-
-                ctx.strokeStyle = '#ef4444';
-                ctx.lineWidth = 3;
-                ctx.setLineDash([8, 6]);
-                ctx.beginPath();
-                const yCoord = y.getPixelForValue(2.0);
-                ctx.moveTo(left, yCoord);
-                ctx.lineTo(right, yCoord);
-                ctx.stroke();
-
-                ctx.fillStyle = 'rgba(25, 25, 25, 0.95)';
-                ctx.fillRect(right - 150, yCoord - 16, 142, 22);
-
-                ctx.fillStyle = '#ef4444';
-                ctx.font = 'bold 12px sans-serif';
-                ctx.fillText('FED TARGET (2.0%)', right - 142, yCoord - 2);
-                
-                ctx.restore();
-            }
-        };
-
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: chartData.months,
-                datasets: [
-                    {
-                        type: 'line',
-                        label: 'Headline PCE',
-                        data: chartData.pce,
-                        borderColor: '#ff7f0e',
-                        backgroundColor: '#ff7f0e',
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        tension: 0.3,
-                        order: 0
-                    },
-                    {
-                        type: 'line',
-                        label: 'Core PCE',
-                        data: chartData.core_pce,
-                        borderColor: '#949494',
-                        backgroundColor: '#949494',
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        tension: 0.3,
-                        order: 0
-                    },
-                    {
-                        type: 'line',
-                        label: 'Headline CPI',
-                        data: chartData.cpi,
-                        borderColor: '#ffffff',
-                        backgroundColor: '#ffffff',
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        tension: 0.3,
-                        order: 0
-                    },
-                    {
-                        type: 'line',
-                        label: 'Core CPI',
-                        data: chartData.core_cpi,
-                        borderColor: '#2b5cbf',
-                        backgroundColor: '#2b5cbf',
-                        borderWidth: 2.5,
-                        pointRadius: 4,
-                        tension: 0.3,
-                        order: 0
-                    },
-                    {
-                        label: 'Headline PCE',
-                        data: chartData.pce,
-                        backgroundColor: '#ff7f0e',
-                        borderRadius: 4,
-                        barPercentage: 0.90,
-                        categoryPercentage: 0.85,
-                        order: 1
-                    },
-                    {
-                        label: 'Core PCE',
-                        data: chartData.core_pce,
-                        backgroundColor: '#949494',
-                        borderRadius: 4,
-                        barPercentage: 0.90,
-                        categoryPercentage: 0.85,
-                        order: 1
-                    },
-                    {
-                        label: 'Headline CPI',
-                        data: chartData.cpi,
-                        backgroundColor: '#ffffff',
-                        borderRadius: 4,
-                        barPercentage: 0.90,
-                        categoryPercentage: 0.85,
-                        order: 1
-                    },
-                    {
-                        label: 'Core CPI',
-                        data: chartData.core_cpi,
-                        backgroundColor: '#2b5cbf',
-                        borderRadius: 4,
-                        barPercentage: 0.90,
-                        categoryPercentage: 0.85,
-                        order: 1
-                    }
-                ]
+        const fredStyleOptions = (yTitle) => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11 }, color: '#b0b0b0', maxRotation: 45, minRotation: 0 }
+                },
+                y: {
+                    grid: { color: '#2a2a2a', lineWidth: 1 },
+                    ticks: { callback: function(value) { return value.toFixed(1) + '%'; }, font: { size: 11 }, color: '#b0b0b0' },
+                    title: { display: true, text: yTitle, font: { size: 12, weight: '600' }, color: '#d0d0d0' }
+                }
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: {
-                            font: { weight: '600', size: 11 },
-                            color: '#e5e7eb',
-                            maxRotation: 45,
-                            minRotation: 0
-                        }
+            plugins: {
+                datalabels: {
+                    formatter: function(value, context) {
+                        return context.dataset.type === 'line' && context.dataset.label.includes('Target') ? '' : (value !== null ? value.toFixed(1) : '');
                     },
-                    y: {
-                        beginAtZero: true,
-                        max: 5.5,
-                        grid: {
-                            color: '#252525',
-                            lineWidth: 1
-                        },
-                        ticks: {
-                            callback: function(value) { return value + '%'; },
-                            font: { weight: '600', size: 12 },
-                            color: '#e5e7eb'
-                        },
-                        title: {
-                            display: true,
-                            text: 'Year-over-Year Percentage Change (%)',
-                            font: { size: 14, weight: '700' },
-                            color: '#ffffff'
-                        }
+                    anchor: 'end',
+                    align: 'top',
+                    offset: 4,
+                    color: '#e0e0e0',
+                    font: { size: 10, weight: '600' }
+                },
+                legend: {
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        padding: 15,
+                        font: { size: 11, weight: '600' },
+                        color: '#e0e0e0',
+                        usePointStyle: true,
+                        pointStyle: 'circle'
                     }
                 },
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: {
-                            padding: 20,
-                            font: { size: 12, weight: '700' },
-                            color: '#ffffff',
-                            usePointStyle: true,
-                            pointStyle: 'rectRounded'
-                        }
-                    },
-                    tooltip: {
-                        backgroundColor: '#202020',
-                        titleColor: '#ffffff',
-                        bodyColor: '#ffffff',
-                        bodyFont: { size: 13, weight: 'bold' },
-                        borderColor: '#2f2f2f',
-                        borderWidth: 1,
-                        padding: 12,
-                        cornerRadius: 6,
-                        callbacks: {
-                            label: function(context) {
-                                const val = context.raw;
-                                return ` ${context.dataset.label}: ${val}%`;
-                            }
+                tooltip: {
+                    backgroundColor: '#1e1e1e',
+                    titleColor: '#ffffff',
+                    bodyColor: '#ffffff',
+                    borderColor: '#333333',
+                    borderWidth: 1,
+                    padding: 10,
+                    callbacks: {
+                        label: function(context) { 
+                            if (context.raw === null) return null;
+                            return ` ${context.dataset.label}: ${context.raw.toFixed(2)}%`; 
                         }
                     }
                 }
-            },
-            plugins: [fedTargetPlugin, automatedStatusTextPlugin]
+            }
+        });
+
+        chartConfigs.forEach(cfg => {
+            const dataObj = chartsPayload[cfg.key] || { labels: [], actuals: [], forecasts: [], target: [], fred_updated: 'Unknown', next_release: 'N/A', forecast_updates: [] };
+            const forecastUpdStr = dataObj.forecast_updates.length > 0 ? dataObj.forecast_updates.join(', ') : 'N/A';
+
+            const card = document.createElement('div');
+            card.className = 'container';
+            card.innerHTML = `
+                <div class="card-header-flex">
+                    <h2>${cfg.title}</h2>
+                    <div class="meta-stamp">
+                        FRED Updated: <span>${dataObj.fred_updated}</span><br>
+                        Forecast Updated: <span>${forecastUpdStr}</span><br>
+                        <div class="next-release-row">Next Release Date: <span>${dataObj.next_release}</span></div>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="${cfg.key}Chart"></canvas></div>
+            `;
+            grid.appendChild(card);
+
+            const ctx = document.getElementById(`${cfg.key}Chart`).getContext('2d');
+            const isMom = cfg.key.includes('mom');
+            const targetLabel = isMom ? 'Target (0.2% MoM)' : 'Fed Target (2.0%)';
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dataObj.labels,
+                    datasets: [
+                        { 
+                            label: 'Actual', 
+                            data: dataObj.actuals, 
+                            backgroundColor: cfg.color, 
+                            borderRadius: 2, 
+                            barPercentage: 0.75, 
+                            categoryPercentage: 0.8,
+                            order: 2
+                        },
+                        { 
+                            type: 'line', 
+                            label: 'Forecast', 
+                            data: dataObj.forecasts, 
+                            borderColor: '#f97316', 
+                            backgroundColor: '#f97316', 
+                            pointRadius: 7, 
+                            pointHoverRadius: 9, 
+                            pointStyle: 'circle', 
+                            showLine: false,
+                            order: 1
+                        },
+                        {
+                            type: 'line',
+                            label: targetLabel,
+                            data: dataObj.target,
+                            borderColor: '#ef4444',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            fill: false,
+                            order: 3
+                        }
+                    ]
+                },
+                options: fredStyleOptions(isMom ? 'Percent Change, SA' : 'Percent Change'),
+                plugins: [ChartDataLabels]
+            });
         });
     </script>
 </body>
